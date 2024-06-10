@@ -298,11 +298,11 @@ def create_splits(dataset, train_ratio=0.7, val_ratio=0.15):
     train_dataset, val_dataset, test_dataset = random_split(dataset, [train_size, val_size, test_size])
     return train_dataset, val_dataset, test_dataset
 
-def create_dataloader(dataset, batch_size, shuffle=True, num_workers=4):
+def create_dataloader(dataset, sampler, batch_size, shuffle=True, num_workers=4):
     dataloader = DataLoader(
         dataset,
+        sampler = sampler,
         batch_size=batch_size,
-        shuffle=shuffle,
         num_workers=num_workers,
         pin_memory=True
     )

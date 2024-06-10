@@ -1,7 +1,7 @@
 from dataset import IRDataset, create_dataloader
 from dataset import create_splits
 from dataset import IRContrastStretching
-from utils import Increment_dir
+from utils import increment_dir
 from torch.utils.tensorboard import SummaryWriter
 from pathlib import Path
 
@@ -72,7 +72,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     #parser.add_argument('--weights', type=str, default='', help='initial weights path')
     parser.add_argument('--model', type=str, default='', help='which model to use')
-    parser.add_argument('--config', type=str, default='sequence_v2.json', help='sequence json path')
+    parser.add_argument('--data', type=str, default='sequence_v2.json', help='sequence json path')
     parser.add_argument('--lr', type=float, default=0.001, help='learning rate')
     parser.add_argument('--epochs', type=int, default=100, help='number of epochs')
     parser.add_argument('--batch-size', type=int, default=128, help='total batch size for all GPUs')
@@ -82,6 +82,7 @@ if __name__ == '__main__':
     parser.add_argument('--name', type=str, default='', help='renames results.txt to results name.txt if supplied')
     parser.add_argument('--device', type=str, default='0,1,2,3 or cpu', help='cuda device, i.e. 0,1,2,3 or cpu')
     parser.add_argument('--logdir', type=str, default='runs/', help='logging directory')
+    parser.add_argument('--decrease', type=float, default=0.1, help='randomly decrease dataset size')
     opt = parser.parse_args()
 
     torch.multiprocessing.freeze_support()
@@ -96,12 +97,12 @@ if __name__ == '__main__':
     results_file = str(log_dir / 'results.txt')
 
     # Load dataset
-    dataset = IRDataset(opt.config)
-    train_dataset, val_dataset, test_dataset = create_splits(dataset)
-
-    train_loader = create_dataloader(train_dataset, opt.batch_size, shuffle=True, num_workers=4)
-    val_loader = create_dataloader(val_dataset, opt.batch_size, shuffle=False)
-    test_loader = create_dataloader(test_dataset, opt.batch_size, shuffle=False)
+    dataset = IRDataset(opt.data)
+    train_sampler, val_sampler, test_sampler = create_splits(opt.decrease)
+    print(f"After randomly selected dataset size: {len(train_sampler)+len(val_sampler)+len(test_sampler)}")
+    train_loader = create_dataloader(dataset, train_sampler, opt.batch_size, num_workers=4)
+    val_loader = create_dataloader(dataset, val_sampler, opt.batch_size )
+    test_loader = create_dataloader(dataset, test_sampler, opt.batch_size)
 
     print("Dataloaders ready!")
 
@@ -112,13 +113,13 @@ if __name__ == '__main__':
         device = torch.device(opt.device)
 
     model = model_dict[opt.model](dataset.crop_size).to(device)
-    # model = SceneUNCNet2(model_dict[opt.model], dataset.crop_size).to(device)
+    
     optimizer = optim.Adam(model.parameters(), lr=opt.lr)
 
     loss_fn = nn.MSELoss()
 
     with open(results_file, 'a') as f:
-        f.write('%s, %s, %f, %d/n'%(opt.model, opt.config, opt.lr, opt.batch_size))
+        f.write('%s, %s, %f, %d, %.1f/n'%(opt.model, opt.data, opt.lr, opt.batch_size, opt.decrease))
         f.write("Epoch, Train Loss, Val Loss, Val RMSE A, Val RMSE B\n")
         f.write("---------------------------------------------------\n")
 
@@ -148,8 +149,6 @@ if __name__ == '__main__':
 
                 if best_fitness == (val_rmse_A + val_rmse_B):
                     torch.save(model.state_dict(), best)
-                # if near the end, save model checkpoints
-                #if epoch >= (opt.epochs - 30):
-                #    torch.save(model.state_dict(), last.replace('.pt', f':{epoch:03d}.pt'))
+
 
     torch.cuda.empty_cache()
