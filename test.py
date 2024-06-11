@@ -2,10 +2,13 @@ import torch
 import argparse
 from pathlib import Path
 import cv2
+import os
 import numpy as np
 from math import log10, sqrt 
 from dataset import IRContrastStretching
 from dataset import IRDataset, create_splits, create_dataloader
+from torch import nn
+from models import model_dict
 
 def PSNR(original, compressed): 
     mse = np.mean((original - compressed) ** 2) 
