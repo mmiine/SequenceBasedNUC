@@ -259,6 +259,42 @@ class IRDataset(Dataset):
         B = self.scalerB.fit_transform(B)
 
         return torch.tensor(A, dtype=torch.float32), torch.tensor(B, dtype=torch.float32)
+    
+    def cropAB(self, A, B, motion_center):
+        crop_height, crop_width = self.crop_size
+        x_center, y_center = motion_center
+
+        # Calculate top and left for cropping to ensure the crop stays within the image
+        top = max(min(y_center - crop_height // 2, self.height - crop_height), 0)
+        left = max(min(x_center - crop_width // 2, self.width - crop_width), 0)
+
+        # Adjust if the calculated top or left plus the crop size exceeds the image dimensions
+        if top + crop_height > self.height:
+            top = max(self.height - crop_height, 0)
+        if left + crop_width > self.width:
+            left = max(self.width - crop_width, 0)
+
+        return crop(A, top, left, crop_height, crop_width), crop(B, top, left, crop_height, crop_width)
+    
+    def inverseAB(self, cropped_A, cropped_B, motion_center):
+        crop_height, crop_width = cropped_A.shape[0], cropped_A.shape[1]
+        x_center, y_center = motion_center
+
+        # Calculate top and left for cropping to ensure the crop stays within the image
+        top = max(min(y_center - crop_height // 2, self.height - crop_height), 0)
+        left = max(min(x_center - crop_width // 2, self.width - crop_width), 0)
+
+        # Adjust if the calculated top or left plus the crop size exceeds the image dimensions
+        if top + crop_height > self.height:
+            top = max(self.height - crop_height, 0)
+        if left + crop_width > self.width:
+            left = max(self.width - crop_width, 0)
+
+        cropped_A = self.scalerA.inverse_transform(cropped_A[:, left:left+crop_width])
+        cropped_B = self.scalerB.inverse_transform(cropped_B[:, left:left+crop_width])
+        
+        return cropped_A, cropped_B
+
 
     @staticmethod
     def read_image(path):
